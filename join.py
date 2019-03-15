@@ -1,6 +1,7 @@
 import click
 import csv
 import re
+from nltk.corpus import wordnet
 from more_itertools import peekable
 
 
@@ -21,9 +22,9 @@ MODEL_RE = re.compile(r".*\(tags: model:([^, \)]+)\).*")
               help='Accept or reject non-English based mappings')
 @click.option('--use-model/--use-link-original', default=True,
               help='Link via the model tag or via the link_original field')
-def hello(pred_matrix, pb_defns, out, reject_non_english, use_model):
-    """Simple program that greets NAME for a total of COUNT times."""
-
+@click.option('--synset/--english-lemmas', default=False,
+              help='Map to synset IDs rather than English lemmas')
+def main(pred_matrix, pb_defns, out, reject_non_english, use_model, synset):
     # Load mapping from English PropBank senses to English WordNet senses
     mapping = {}
     with open(pred_matrix, 'r') as matrix:
@@ -36,11 +37,7 @@ def hello(pred_matrix, pb_defns, out, reject_non_english, use_model):
                 wn = row['11_WN_SENSE'].split(':', 1)[1]
                 mapping.setdefault(pb, set()).add(wn)
 
-    #for key in sorted(mapping.keys()):
-        #print(key, mapping[key])
-
     # Join with mapping from Finnish to English PropBank
-
     with open(pb_defns, 'r') as propbank, open(out, 'w') as csvout:
         propbank = csv.DictReader(propbank, delimiter='\t')
         csvout = csv.writer(csvout)
@@ -60,8 +57,11 @@ def hello(pred_matrix, pb_defns, out, reject_non_english, use_model):
                 pb = None
             if pb is not None and pb in mapping:
                 for wn in mapping[pb]:
-                    csvout.writerow((pb_finn, wn))
+                    if synset:
+                        csvout.writerow((pb_finn, wordnet.ss2of(wordnet.lemma_from_key(wn + "::").synset())))
+                    else:
+                        csvout.writerow((pb_finn, wn))
 
 
 if __name__ == '__main__':
-    hello()
+    main()
